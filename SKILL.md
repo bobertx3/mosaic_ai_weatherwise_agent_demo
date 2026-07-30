@@ -121,7 +121,7 @@ Document the **Mosaic AI Core APIs** used in the project as a quick reference:
 
 #### Step 1: Install & Setup
 ```python
-%pip install -U -qqqq mlflow-skinny[databricks] langgraph==0.3.4 databricks-langchain databricks-agents twilio python-dotenv
+%pip install -U -qqqq mlflow-skinny[databricks] langgraph==0.3.4 databricks-langchain databricks-agents langchain-openai twilio python-dotenv
 dbutils.library.restartPython()
 ```
 - `%load_ext autoreload` + `%autoreload 2` for hot-reloading agent code

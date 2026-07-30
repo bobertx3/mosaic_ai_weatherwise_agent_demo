@@ -166,6 +166,14 @@ Agent Flow
 
 Update your **`.env`** file with all required credentials and environment variables.
 
+To use **AI Gateway** for the agent LLM, set:
+
+```bash
+AI_GATEWAY_MODEL="system.ai.claude-opus-5"
+```
+
+The agent is configured to use AI Gateway directly. Gateway mode calls `${DATABRICKS_HOST}/ai-gateway/mlflow/v1` and requires Databricks auth via `DATABRICKS_TOKEN` or Databricks SDK credentials.
+
 ---
 
 ### 2. Load Data & Initialize Assets

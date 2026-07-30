@@ -11,11 +11,14 @@ TARGET_CATALOG = os.environ.get("TARGET_CATALOG")
 TARGET_SCHEMA = os.environ.get("TARGET_SCHEMA")
 VS_INDEX = os.environ.get("VS_INDEX")
 RETRIEVER_TOOL_NAME = os.environ.get("RETRIEVER_TOOL_NAME")
-LLM_ENDPOINT_NAME = os.environ.get("LLM_ENDPOINT_NAME")
+# Model Serving LLM endpoint path is disabled while this demo uses AI Gateway.
+# LLM_ENDPOINT_NAME = os.environ.get("LLM_ENDPOINT_NAME")
+AI_GATEWAY_MODEL = os.environ.get("AI_GATEWAY_MODEL")
+AI_GATEWAY_BASE_URL = os.environ.get("AI_GATEWAY_BASE_URL")
 
 import mlflow
 from databricks_langchain import (
-    ChatDatabricks,
+    # ChatDatabricks,
     VectorSearchRetrieverTool,
     DatabricksFunctionClient,
     UCFunctionToolkit,
@@ -28,7 +31,6 @@ from mlflow.types.responses import (
     ResponsesAgentRequest,
     ResponsesAgentResponse,
     ResponsesAgentStreamEvent,
-    to_chat_completions_input,
 )
 
 mlflow.langchain.autolog()
@@ -39,10 +41,74 @@ set_uc_function_client(client)
 ############################################
 # Define your LLM endpoint
 ############################################
-# use_responses_api=True routes calls through /v1/responses, which is required for
-# reasoning models (e.g. databricks-gpt-5-5) to use function/tool calling. Reasoning
-# models reject function tools + reasoning_effort on /v1/chat/completions.
-llm = ChatDatabricks(endpoint=LLM_ENDPOINT_NAME, use_responses_api=True)
+def _get_databricks_host() -> str:
+    host = (
+        os.environ.get("DATABRICKS_HOST")
+        or os.environ.get("DATABRICKS_WORKSPACE_URL")
+        or os.environ.get("DATABRICKS_HOST_URL")
+    )
+    if not host:
+        raise ValueError(
+            "AI_GATEWAY_MODEL is set, but no Databricks host was found. "
+            "Set DATABRICKS_HOST, for example https://<workspace>.cloud.databricks.com."
+        )
+    return host.rstrip("/")
+
+
+def _get_databricks_token() -> str:
+    if os.environ.get("DATABRICKS_TOKEN"):
+        return os.environ["DATABRICKS_TOKEN"]
+
+    try:
+        from databricks.sdk import WorkspaceClient
+
+        auth_result = WorkspaceClient().config.authenticate()
+        headers = auth_result if isinstance(auth_result, dict) else {}
+        if callable(auth_result):
+            auth_result(headers)
+        auth_header = headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            return auth_header.removeprefix("Bearer ")
+    except Exception as exc:
+        raise ValueError(
+            "AI_GATEWAY_MODEL is set, but Databricks auth could not resolve a token. "
+            "Set DATABRICKS_TOKEN or configure Databricks SDK authentication."
+        ) from exc
+
+    raise ValueError(
+        "AI_GATEWAY_MODEL is set, but Databricks auth did not return a bearer token."
+    )
+
+
+def _create_llm():
+    if AI_GATEWAY_MODEL:
+        from langchain_openai import ChatOpenAI
+
+        base_url = AI_GATEWAY_BASE_URL or f"{_get_databricks_host()}/ai-gateway/mlflow/v1"
+        chat_kwargs = {
+            "model": AI_GATEWAY_MODEL,
+            "base_url": base_url,
+            "api_key": _get_databricks_token(),
+        }
+        if AI_GATEWAY_MODEL.startswith("system.ai.gpt-5"):
+            # GPT-5-family models reject function tools with reasoning_effort on
+            # /chat/completions unless it is explicitly disabled.
+            chat_kwargs["reasoning_effort"] = "none"
+        return ChatOpenAI(**chat_kwargs)
+
+    raise ValueError("Set AI_GATEWAY_MODEL before importing the agent.")
+
+    # Model Serving fallback disabled:
+    # if not LLM_ENDPOINT_NAME:
+    #     raise ValueError("Set LLM_ENDPOINT_NAME or AI_GATEWAY_MODEL before importing the agent.")
+    #
+    # use_responses_api=True routes calls through /v1/responses, which is required for
+    # reasoning models (e.g. databricks-gpt-5-5) to use function/tool calling. Reasoning
+    # models reject function tools + reasoning_effort on /v1/chat/completions.
+    # return ChatDatabricks(endpoint=LLM_ENDPOINT_NAME, use_responses_api=True)
+
+
+llm = _create_llm()
 
 ############################################
 # Define your system prompt
@@ -192,6 +258,29 @@ def _message_text(ai_message) -> str:
     return str(content) if content is not None else ""
 
 
+def _responses_input_to_chat_messages(input_items) -> list[dict[str, str]]:
+    """Convert ResponsesAgent input items into LangChain chat messages.
+
+    Some MLflow runtimes do not expose ``to_chat_completions_input``, so keep the
+    conversion local and limited to the message shapes this agent receives.
+    """
+    messages = []
+    for item in input_items:
+        data = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+        role = data.get("role", "user")
+        content = data.get("content", "")
+        if isinstance(content, list):
+            text_parts = []
+            for part in content:
+                if isinstance(part, str):
+                    text_parts.append(part)
+                elif isinstance(part, dict) and isinstance(part.get("text"), str):
+                    text_parts.append(part["text"])
+            content = "".join(text_parts)
+        messages.append({"role": role, "content": content or ""})
+    return messages
+
+
 class ToolCallingResponsesAgent(ResponsesAgent):
     def predict(self, request: ResponsesAgentRequest) -> ResponsesAgentResponse:
         outputs = [
@@ -208,7 +297,7 @@ class ToolCallingResponsesAgent(ResponsesAgent):
         request: ResponsesAgentRequest,
     ) -> Generator[ResponsesAgentStreamEvent, None, None]:
         # Convert Responses input items into chat-completions style messages
-        cc_msgs = to_chat_completions_input([i.model_dump() for i in request.input])
+        cc_msgs = _responses_input_to_chat_messages(request.input)
         messages = [{"role": "system", "content": system_prompt}] + cc_msgs
 
         for _ in range(_MAX_TURNS):

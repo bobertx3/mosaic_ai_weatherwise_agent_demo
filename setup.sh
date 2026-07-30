@@ -65,17 +65,23 @@ load_env() {
   set +a
 
   # Validate required variables
-  for var in TARGET_CATALOG TARGET_SCHEMA VS_INDEX_BASE_TABLE VS_INDEX AGENT_NAME LLM_ENDPOINT_NAME; do
+  for var in TARGET_CATALOG TARGET_SCHEMA VS_INDEX_BASE_TABLE VS_INDEX AGENT_NAME; do
     if [[ -z "${!var:-}" ]]; then
       echo "ERROR: Required variable $var is not set in $env_file"
       exit 1
     fi
   done
 
+  if [[ -z "${AI_GATEWAY_MODEL:-}" ]]; then
+    echo "ERROR: Required variable AI_GATEWAY_MODEL is not set in $env_file"
+    exit 1
+  fi
+
   echo "  TARGET_CATALOG=$TARGET_CATALOG"
   echo "  TARGET_SCHEMA=$TARGET_SCHEMA"
   echo "  VS_INDEX_BASE_TABLE=$VS_INDEX_BASE_TABLE"
   echo "  VS_INDEX=$VS_INDEX"
+  echo "  AI_GATEWAY_MODEL=$AI_GATEWAY_MODEL"
 }
 
 # ── Validate prerequisites ───────────────────────────────────
@@ -698,7 +704,9 @@ main() {
     \"TARGET_CATALOG\": \"$TARGET_CATALOG\",
     \"TARGET_SCHEMA\": \"$TARGET_SCHEMA\",
     \"VS_INDEX\": \"${VS_INDEX:-}\",
-    \"LLM_ENDPOINT_NAME\": \"${LLM_ENDPOINT_NAME:-}\",
+    \"DATABRICKS_HOST\": \"${DATABRICKS_HOST:-}\",
+    \"AI_GATEWAY_MODEL\": \"${AI_GATEWAY_MODEL:-}\",
+    \"AI_GATEWAY_BASE_URL\": \"${AI_GATEWAY_BASE_URL:-}\",
     \"MLFLOW_EXPERIMENT\": \"${MLFLOW_EXPERIMENT:-}\",
     \"RETRIEVER_TOOL_NAME\": \"${RETRIEVER_TOOL_NAME:-}\",
     \"AGENT_NAME\": \"${AGENT_NAME:-}\"

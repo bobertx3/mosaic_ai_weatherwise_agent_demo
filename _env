@@ -1,23 +1,35 @@
-## To send emails using Mailgun (3000 free emails per month)
-MAILGUN_API_URL=""
+## To send emails, using Mailgun (3000 free emails per month)
+MAILGUN_API_URL="https://api.mailgun.net/v3/datakafe.com/messages"
 MAILGUN_API_KEY=""
 SENDER=""
 RECIPIENT=""
 
-## To send SMS, using Twilio  
+## To send SMS, using Twilio
 SMS_ACCOUNT_SID=""
 SMS_AUTH_TOKEN=""
 
 ## Catalog and Schema
-TARGET_CATALOG="jnj_medtech"
-TARGET_SCHEMA="supply_chain"
+TARGET_CATALOG="bldemos"
+TARGET_SCHEMA="agentbricks_weatherwise"
 
 ## Additional configs
-LLM_ENDPOINT_NAME="databricks-claude-3-7-sonnet"
-MLFLOW_EXPERIMENT="weatherwise_agent_tests"
+DATABRICKS_HOST="https://fevm-bobertx3-aws-fevm.cloud.databricks.com"
+DATABRICKS_TOKEN=""
+AI_GATEWAY_MODEL="system.ai.gpt-5-6-sol"
+AI_GATEWAY_BASE_URL="https://fevm-bobertx3-aws-fevm.cloud.databricks.com/ai-gateway/mlflow/v1"
+# LLM_ENDPOINT_NAME is only used when AI_GATEWAY_MODEL is empty.
+# LLM_ENDPOINT_NAME="databricks-gpt-5-5"
+MLFLOW_EXPERIMENT="weather_agent_tests"
 VS_INDEX_BASE_TABLE="supplier_sops"
 VS_INDEX="supplier_sops_vs_index"
 RETRIEVER_TOOL_NAME="search_supplier_sops"
-AGENT_NAME="weatherwise_agent"
+AGENT_NAME="weatherwise"
 APP_NAME="weatherwise_chat_agent"
+
+
+# SQL Warehouse for Dashboard and Genie
+DATABRICKS_SQL_WAREHOUSE_ID=35670cdf44904d28
+
+# Genie Space for Ask Genie tab
+DATABRICKS_GENIE_SPACE_ID=01f18b8e23121aea9902dd6277b5de5b
 
